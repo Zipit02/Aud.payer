@@ -1,1 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Incoming Transfer</title>
+<meta name="description" content="Incoming AUD transfer — confirm and accept your pending deposit." />
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0f14;
+    --card:#121821;
+    --card2:#0f141c;
+    --border:#1f2733;
+    --muted:#8a96a8;
+    --text:#e7edf6;
+    --primary:#16c47f;     /* AUD green */
+    --primary-2:#0fa56a;
+    --warning:#ffb020;
+    --danger:#ff4d6d;
+    --accent:#3b82f6;
+  }
+  *{box-sizing:border-box}
+  html,body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased}
+  .mono{font-family:'JetBrains Mono',monospace}
+  .amount{font-family:'Inter',sans-serif;font-weight:800;letter-spacing:-0.04em}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:20px}
+  .card-2{background:var(--card2);border:1px solid var(--border);border-radius:16px}
+  .btn-primary{background:linear-gradient(180deg,var(--primary),var(--primary-2));color:#031b10;font-weight:800;border-radius:999px;transition:transform .1s ease, filter .2s ease;box-shadow:0 10px 30px -10px rgba(22,196,127,.55)}
+  .btn-primary:active{transform:scale(.98);filter:brightness(1.05)}
+  .btn-ghost{background:#1a2230;color:var(--text);font-weight:600;border-radius:999px}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:600}
+  .pill-warn{background:rgba(255,176,32,.12);color:var(--warning);border:1px solid rgba(255,176,32,.3)}
+  .pill-green{background:rgba(22,196,127,.12);color:var(--primary);border:1px solid rgba(22,196,127,.3)}
+  .pill-red{background:rgba(255,77,109,.12);color:var(--danger);border:1px solid rgba(255,77,109,.3)}
+  .divider{height:1px;background:var(--border)}
+  .row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;font-size:13px}
+  .row .k{color:var(--muted)}
+  .row .v{font-weight:600;text-align:right;max-width:60%;word-break:break-word}
+  .screen{display:none;animation:slideUp .35s ease both}
+  .screen.active{display:flex;flex-direction:column;flex:1}
+  @keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+  @keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.06);opacity:.85}}
+  .pulse{animation:pulse 1.6s ease-in-out infinite}
+  @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+  .shimmer{background:linear-gradient(90deg,transparent, rgba(255,255,255,.08), transparent);background-size:200% 100%;animation:shimmer 1.4s linear infinite}
+  /* Spinner — 18 spokes */
+  .spinner{position:relative;width:88px;height:88px}
+  .spinner i{position:absolute;left:50%;top:50%;width:4px;height:22px;margin-left:-2px;margin-top:-44px;border-radius:2px;background:var(--primary);transform-origin:50% 100%;opacity:.15;animation:spk 1.2s linear infinite}
+  @keyframes spk{0%{opacity:1}100%{opacity:.15}}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1a2230;border:1px solid var(--border);color:var(--text);padding:10px 16px;border-radius:999px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s}
+  .toast.show{opacity:1}
+  /* Receipt watermark */
+  .stamp{border:2px solid var(--warning);color:var(--warning);font-weight:800;letter-spacing:.18em;padding:6px 12px;border-radius:6px;transform:rotate(-8deg);font-size:11px;display:inline-block}
+  .receipt-bg{background:
+     radial-gradient(circle at 20% 0%, rgba(22,196,127,.08), transparent 40%),
+     radial-gradient(circle at 100% 100%, rgba(59,130,246,.06), transparent 40%),
+     var(--card)}
+  .qr{filter:invert(1) hue-rotate(180deg)}
+  .scrolly{overflow-y:auto}
+  .scrolly::-webkit-scrollbar{width:0}
+  /* Modal */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-end;justify-content:center;z-index:50;backdrop-filter:blur(4px)}
+  .modal.show{display:flex}
+  .sheet{background:var(--card);border:1px solid var(--border);border-radius:24px 24px 0 0;width:100%;max-width:480px;padding:20px;animation:slideUp .25s ease}
+  @media(min-width:480px){.modal{align-items:center}.sheet{border-radius:24px}}
+</style>
+</head>
+<body>
+<div class="mx-auto max-w-md min-h-screen flex flex-col relative" id="app">
 
+  <!-- ───────── HOME / INCOMING ───────── -->
+  <section class="screen active" id="screen-home">
+    <header class="flex items-center justify-between px-5 pt-6 pb-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full" style="background:linear-gradient(135deg,#16c47f,#0fa56a);display:flex;align-items:center;justify-content:center;color:#031b10;font-weight:800">JW</div>
+        <div>
+          <p class="text-[11px]" style="color:var(--muted)">Account holder</p>
+          <p class="font-semibold text-sm">Jonathan Watts</p>
+        </div>
+      </div>
+      <button class="w-10 h-10 rounded-full flex items-center justify-center" style="background:#1a2230">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      </button>
+    </header>
+
+    <div class="px-5">
+      <div class="card p-5 mb-4" style="background:linear-gradient(160deg,#0f1a14,#121821)">
+        <div class="flex items-center justify-between mb-3">
+          <span class="pill pill-green">● Incoming Transfer</span>
+          <span class="text-[11px] mono" style="color:var(--muted)">REF: AU-2046-883</span>
+        </div>
+        <p class="text-xs" style="color:var(--muted)">From</p>
+        <p class="font-semibold text-sm mb-4">ATM Alliance Clearing · AU</p>
+
+        <p class="text-[11px] uppercase tracking-widest" style="color:var(--muted)">Amount</p>
+        <p class="amount text-5xl mt-1" style="color:var(--primary)">A$33,251<span class="text-2xl" style="color:#6b7a90">.00</span></p>
+        <p class="text-xs mt-1" style="color:var(--muted)">Australian Dollar · NPP Instant</p>
+
+        <div class="mt-5 grid grid-cols-2 gap-2">
+          <button onclick="show('confirm')" class="btn-primary h-12 text-sm">Accept</button>
+          <button class="btn-ghost h-12 text-sm">Decline</button>
+        </div>
+      </div>
+
+      <div class="card-2 p-4 mb-4">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-full flex items-center justify-center" style="background:rgba(255,176,32,.12);color:var(--warning)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+          </div>
+          <div class="text-xs leading-relaxed">
+            <p class="font-semibold">Action required</p>
+            <p style="color:var(--muted)">Accept this transfer within 24h to credit your account.</p>
+          </div>
+        </div>
+      </div>
+
+      <p class="text-[10px] text-center mb-6" style="color:var(--muted)">Secured by 256-bit encryption · NPP Australia</p>
+    </div>
+  </section>
+
+  <!-- ───────── CONFIRM TRANSACTION INFO ───────── -->
+  <section class="screen" id="screen-confirm">
+    <header class="flex items-center justify-between px-5 pt-6 pb-4">
+      <button onclick="show('home')" class="w-10 h-10 rounded-full flex items-center justify-center" style="background:#1a2230">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </button>
+      <p class="font-bold">Confirm Transaction</p>
+      <div class="w-10"></div>
+    </header>
+
+    <div class="px-5 flex-1 scrolly">
+      <p class="text-xs text-center mb-2" style="color:var(--muted)">You are accepting</p>
+      <p class="amount text-4xl text-center" style="color:var(--primary)">A$30,850.00</p>
+      <p class="text-xs text-center mb-5" style="color:var(--muted)">Please review the destination details below</p>
+
+      <div class="card p-5 mb-4">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background:rgba(22,196,127,.12);color:var(--primary)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/></svg>
+          </div>
+          <div>
+            <p class="text-[11px]" style="color:var(--muted)">Receiving account</p>
+            <p class="font-semibold text-sm">Australian Bank Transfer</p>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="row"><span class="k">Account name</span><span class="v">Jonathan Watts</span></div>
+        <div class="divider"></div>
+        <div class="row"><span class="k">BSB</span><span class="v mono">086 334</span></div>
+        <div class="divider"></div>
+        <div class="row"><span class="k">ACN</span><span class="v mono">820 794 547</span></div>
+        <div class="divider"></div>
+        <div class="row"><span class="k">Currency</span><span class="v">AUD · Australian Dollar</span></div>
+        <div class="divider"></div>
+        <div class="row"><span class="k">Network</span><span class="v">NPP Instant Payments</span></div>
+      </div>
+
+      <div class="card-2 p-4 mb-4 flex gap-3">
+        <div class="w-9 h-9 rounded-full flex shrink-0 items-center justify-center" style="background:rgba(59,130,246,.12);color:var(--accent)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        </div>
+        <p class="text-xs leading-relaxed" style="color:var(--muted)">
+          By confirming, you authorise <span style="color:var(--text);font-weight:600">ATM Alliance Clearing</span> to credit
+          <span style="color:var(--text);font-weight:600">A$33,251 AUD</span> to the account above. This action cannot be reversed.
+        </p>
+      </div>
+
+      <div class="pb-6">
+        <button onclick="startSpinner()" class="btn-primary h-14 w-full text-base">Confirm & Accept Transfer</button>
+        <button onclick="show('home')" class="btn-ghost h-12 w-full text-sm mt-2">Cancel</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── 18s SPINNER ───────── -->
+  <section class="screen" id="screen-spin">
+    <div class="flex-1 flex flex-col items-center justify-center px-6">
+      <div class="spinner mb-6" id="spinner"></div>
+      <p class="font-bold text-lg mb-1" id="spinTitle">Processing transfer…</p>
+      <p class="text-sm text-center min-h-[40px]" style="color:var(--muted)" id="spinMsg">Connecting to NPP clearing house…</p>
+
+      <div class="card-2 p-3 mt-6 w-full max-w-xs">
+        <div class="flex items-center justify-between text-xs">
+          <span style="color:var(--muted)">Time elapsed</span>
+          <span class="mono font-semibold" id="spinTime">00:00</span>
+        </div>
+        <div class="w-full h-1.5 rounded-full mt-2 overflow-hidden" style="background:#1a2230">
+          <div id="spinBar" style="height:100%;width:0%;background:var(--primary);transition:width .3s linear"></div>
+        </div>
+      </div>
+
+      <p class="text-[10px] mt-6" style="color:var(--muted)">Do not close this window</p>
+    </div>
+  </section>
+
+  <!-- ───────── RECEIPT ───────── -->
+  <section class="screen" id="screen-receipt">
+    <header class="flex items-center justify-between px-5 pt-6 pb-4">
+      <button onclick="show('home')" class="w-10 h-10 rounded-full flex items-center justify-center" style="background:#1a2230">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+      <p class="font-bold">Transaction Receipt</p>
+      <button class="w-10 h-10 rounded-full flex items-center justify-center" style="background:#1a2230" onclick="window.print()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      </button>
+    </header>
+
+    <div class="px-5 pb-6 scrolly flex-1">
+      <div class="receipt-bg p-6 rounded-3xl border" style="border-color:var(--border)">
+        <div class="flex items-center justify-between mb-5">
+          <div>
+            <p class="text-[10px] uppercase tracking-widest" style="color:var(--muted)">ATM Alliance · AU</p>
+            <p class="font-bold text-base">Official Receipt</p>
+          </div>
+          <span class="stamp">PENDING</span>
+        </div>
+
+        <div class="text-center py-3 border-y" style="border-color:var(--border)">
+          <p class="text-[11px]" style="color:var(--muted)">Transfer amount</p>
+          <p class="amount text-4xl" style="color:var(--primary)">A$33,251</p>
+          <span class="pill pill-warn mt-2">● Paid · Hold on receipt account</span>
+        </div>
+
+        <div class="row"><span class="k">Status</span><span class="v" style="color:var(--warning)">Paid (Pending release)</span></div>
+        <div class="divider"></div>
+        <div class="row"><span class="k">Reference</span><span class="v mono">AU-2046-883-CLR</span></div>
+        <div class="divider"></div>
+        <div class="row"><span class="k">Sender</span><span class="v">ATM Alliance Clearing</span></div>
+        <div class="divider"></div>
+        <div class="row"><span class="k">Receiver</span><span class="v">Jonathan Watts</span></div>
+        <div class="divider"></div>
+        <div class="row"><span class="k">BSB</span><span class="v mono">086 334</span></div>
+        <div class="divider"></div>
+        <div class="row"><span class="k">ACN</span><span class="v mono">820 794 547</span></div>
+        <div class="divider"></div>
+        <div class="row"><span class="k">Network</span><span class="v">NPP Instant · AUD</span></div>
+        <div class="divider"></div>
+        <div class="row"><span class="k">Date</span><span class="v" id="rDate">—</span></div>
+        <div class="divider"></div>
+        <div class="row"><span class="k">Authorisation</span><span class="v mono">AUTH-7741-XQ</span></div>
+      </div>
+
+      <!-- Dispute notice -->
+      <div class="card mt-4 p-4" style="border-color:rgba(255,77,109,.4);background:rgba(255,77,109,.06)">
+        <div class="flex items-start gap-3">
+          <div class="w-9 h-9 rounded-full flex shrink-0 items-center justify-center" style="background:rgba(255,77,109,.15);color:var(--danger)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+          </div>
+          <div class="text-xs leading-relaxed">
+            <p class="font-bold text-sm mb-1" style="color:var(--danger)">ATM Alliance Dispute Hold</p>
+            <p style="color:var(--muted)">
+              Your transfer was successfully <span style="color:var(--text);font-weight:600">paid</span> but is currently
+              <span style="color:var(--text);font-weight:600">pending on the receipt account</span> due to an
+              <span style="color:var(--text);font-weight:600">ATM Alliance dispute</span>.
+              A final settlement fee of
+              <span style="color:var(--text);font-weight:700">A$2,100.00 AUD</span>
+              is required to clear the dispute and release the funds to your bank account.
+            </p>
+          </div>
+        </div>
+
+        <div class="card-2 mt-4 p-3">
+          <div class="flex items-center justify-between text-xs">
+            <span style="color:var(--muted)">Final settlement fee</span>
+            <span class="amount text-lg" style="color:var(--danger)">A$2,100.00</span>
+          </div>
+          <div class="flex items-center justify-between text-xs mt-1">
+            <span style="color:var(--muted)">Funds on hold</span>
+            <span class="font-semibold">A$33,251</span>
+          </div>
+          <div class="flex items-center justify-between text-xs mt-1">
+            <span style="color:var(--muted)">Release after settlement</span>
+            <span class="font-semibold" style="color:var(--primary)">Instant</span>
+          </div>
+        </div>
+
+        <button onclick="openSupport()" class="btn-primary h-12 w-full text-sm mt-4 flex items-center justify-center gap-2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Contact Support to Settle
+        </button>
+        <p class="text-[10px] text-center mt-2" style="color:var(--muted)">Available 24/7 · Settlement processed within minutes</p>
+      </div>
+
+      <p class="text-[10px] text-center mt-5" style="color:var(--muted)">
+        This receipt is generated by ATM Alliance · AU. Keep it for your records.
+      </p>
+    </div>
+  </section>
+
+  <!-- ───────── SUPPORT MODAL ───────── -->
+  <div class="modal" id="supportModal">
+    <div class="sheet">
+      <div class="flex items-center justify-between mb-4">
+        <p class="font-bold text-base">💬 Live Settlement Support</p>
+        <button onclick="closeSupport()" class="w-8 h-8 rounded-full flex items-center justify-center" style="background:#1a2230">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="card-2 p-4 mb-4 flex items-center gap-3">
+        <div class="w-12 h-12 rounded-full flex items-center justify-center" style="background:linear-gradient(135deg,#229ED9,#1b7fb0);color:#fff">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M9.5 14.5 9 19a1 1 0 0 0 1.6.8L13 18l4 3a1 1 0 0 0 1.6-.6L22 4.5a1 1 0 0 0-1.4-1.1L2.5 10.4a1 1 0 0 0 .1 1.9l4.6 1.5L17 7l-7.5 7.5z"/></svg>
+        </div>
+        <div>
+          <p class="font-semibold text-sm">CEO Trade Support</p>
+          <p class="text-xs" style="color:var(--muted)">@CEO_Trade01 · Online now</p>
+        </div>
+        <span class="ml-auto pill pill-green pulse">● Live</span>
+      </div>
+
+      <p class="text-xs leading-relaxed mb-4" style="color:var(--muted)">
+        Tap below to open a secure live chat with our settlement officer. They will guide you through the
+        <span style="color:var(--text);font-weight:600">A$2,100 final settlement</span> to release your
+        <span style="color:var(--text);font-weight:600">A$33,251</span> funds.
+      </p>
+
+      <a href="https://t.me/CEO_Trade01" target="_blank" rel="noopener" class="btn-primary h-14 w-full text-base flex items-center justify-center gap-2">
+        Open Live Chat
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>
+      </a>
+      <button onclick="closeSupport()" class="btn-ghost h-12 w-full text-sm mt-2">Not now</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Copied</div>
+</div>
+
+<script>
+  // ── Build 18 spokes
+  const spinner = document.getElementById('spinner');
+  for (let i = 0; i < 18; i++){
+    const s = document.createElement('i');
+    s.style.transform = `rotate(${i * 20}deg)`;
+    s.style.animationDelay = `${(i / 18) * 1.2 - 1.2}s`;
+    spinner.appendChild(s);
+  }
+
+  function show(id){
+    document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+    document.getElementById('screen-' + id).classList.add('active');
+    window.scrollTo(0,0);
+  }
+
+  // ── 18 second spinner
+  const SPIN_MS = 18000;
+  const STAGES = [
+    'Connecting to NPP clearing house…',
+    'Verifying BSB 086 334…',
+    'Validating ACN 820 794 547…',
+    'Authenticating receiver: Jonathan Watts…',
+    'Routing through ATM Alliance…',
+    'Finalising settlement ledger…'
+  ];
+
+  function startSpinner(){
+    show('spin');
+    const start = Date.now();
+    const bar = document.getElementById('spinBar');
+    const time = document.getElementById('spinTime');
+    const msg = document.getElementById('spinMsg');
+    const id = setInterval(() => {
+      const e = Date.now() - start;
+      const pct = Math.min(100, (e / SPIN_MS) * 100);
+      bar.style.width = pct + '%';
+      const s = Math.floor(e / 1000);
+      time.textContent = '00:' + String(s).padStart(2,'0');
+      const idx = Math.min(STAGES.length - 1, Math.floor((pct / 100) * STAGES.length));
+      msg.textContent = STAGES[idx];
+      if (e >= SPIN_MS){
+        clearInterval(id);
+        // populate receipt date
+        const d = new Date();
+        document.getElementById('rDate').textContent = d.toLocaleString('en-AU',{dateStyle:'medium',timeStyle:'short'});
+        show('receipt');
+      }
+    }, 100);
+  }
+
+  function openSupport(){ document.getElementById('supportModal').classList.add('show'); }
+  function closeSupport(){ document.getElementById('supportModal').classList.remove('show'); }
+
+  // close modal on backdrop
+  document.getElementById('supportModal').addEventListener('click', (e)=>{
+    if (e.target.id === 'supportModal') closeSupport();
+  });
+</script>
+</body>
+</html>
